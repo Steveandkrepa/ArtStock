@@ -91,7 +91,7 @@ targets:
 
     # ------------------------------------------------------------- 源码与资源
     sources:
-      # 源码根目录，递归收集下面的所有 .swift（当前 48 个文件 / 约 9245 行）。
+      # 源码根目录，递归收集下面的所有 .swift（当前 81 个文件 / 约 25784 行）。
       # 目录结构：App/ Models/ Persistence/ Services/ Scanner/ Features/ DesignSystem/ Support/
       - path: ArtStock
 
