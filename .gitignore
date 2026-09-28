@@ -1,0 +1,38 @@
+# ============================================================================
+#  ArtStock — .gitignore
+#  原则：仓库里只放"人写的"东西；凡是能由 project.yml / 构建过程生成的，
+#        一律不进版本库。
+# ============================================================================
+
+# ---- XcodeGen 生成的工程 ----
+# project.yml 才是唯一事实来源，.xcodeproj 是产物。
+# 每次构建前跑 `xcodegen generate` 重新生成，避免几千行的 pbxproj 制造无意义的 diff。
+ArtStock.xcodeproj/
+
+# ---- 构建产物 ----
+build/
+DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+Payload/
+
+# ---- Swift 模块缓存 ----
+# scripts/regenerate-app-icon.sh 与 scripts/run-parser-tests.sh 都用
+# -module-cache-path .build-cache 把模块缓存固定在仓库内（避免污染 ~/Library）。
+# 它是纯缓存，必须忽略，否则会往仓库里塞几十个 .swiftmodule 文件。
+.build-cache/
+
+# ---- Xcode 用户态文件（每个人本机都不一样，不该共享）----
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# ---- macOS ----
+.DS_Store
+._*
+
+# 注意：Resources/Assets.xcassets 下的 Contents.json 与将来补上的
+#      AppIcon-1024.png 都是**要**进仓库的，不要在上面加 Assets.xcassets 的忽略规则。

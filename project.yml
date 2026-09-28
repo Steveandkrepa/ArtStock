@@ -1,0 +1,327 @@
+# ============================================================================
+#  ArtStock — XcodeGen 工程描述文件
+#  ---------------------------------------------------------------------------
+#  为什么用 XcodeGen：
+#    · 仓库里不放 .xcodeproj/project.pbxproj（几千行、几乎无法 review、合并必冲突）
+#    · 工程配置以纯文本 + 注释的形式被 git 跟踪，改一行就是一个可读的 diff
+#    · 构建机上 `xcodegen generate` 一条命令还原工程，不依赖任何本机状态
+#
+#  使用方式：
+#      brew install xcodegen
+#      cd <仓库根目录>
+#      xcodegen generate          # 生成 ArtStock.xcodeproj
+#      open ArtStock.xcodeproj    # 或用 scripts/make-unsigned-ipa.sh 直接出 IPA
+#
+#  重要：本文件与本项目「不签名 + SideStore 自签」的交付方式强绑定，
+#       所有签名相关的开关都写在下面，且有中文注释解释原因。
+#        本机需要「已签名」产物时怎么覆盖 → 见文件末尾「如何恢复签名」注释。
+# ============================================================================
+
+name: ArtStock
+
+# ----------------------------------------------------------------- 工程选项
+options:
+  # 生成的 project.pbxproj 格式版本。
+  # 用 xcode16_0：Xcode 16 与 Xcode 26 都能直接打开，且不会引入
+  # xcode16_3 才有的新字段（老一点的 Xcode 打不开新格式会直接报错）。
+  projectFormat: xcode16_0
+
+  # 全工程默认部署版本。这是 XcodeGen 里设置 IPHONEOS_DEPLOYMENT_TARGET 的
+  # 规范位置；target 的 settings 里又显式写了一遍（同值，不冲突），
+  # 目的是让 `grep 17.0` 能一眼看到，也防止有人只改一处。
+  deploymentTarget:
+    iOS: "17.0"
+    # 手表端。选 10.0 而不是更低：代码里用了 `containerBackground`
+    # （watchOS 10 起）与 `@Observable`，10.0 是这两样都能用的最低版本，
+    # 而且 watchOS 10 覆盖了 2020 年之后的所有表。
+    watchOS: "10.0"
+
+  # Bundle ID 前缀。只有在 target 完全没有 PRODUCT_BUNDLE_IDENTIFIER 时才会被
+  # 用来拼 `前缀.Target名`。本项目在 target 里显式写死了全小写的
+  # com.yuanjunhao.artstock，所以这里纯属兜底（将来加 target 时省事）。
+  # 不显式写的话，XcodeGen 会按 target 名推出 com.yuanjunhao.ArtStock —— 大小写不对。
+  bundleIdPrefix: com.yuanjunhao
+
+  # 让 Xcode 左侧导航栏的 group 层级与磁盘目录完全一致
+  # （App/ Models/ Persistence/ Services/ Scanner/ Features/ DesignSystem/ Support/）。
+  # 不开的话，加到 target 里的深层文件会平铺在根 group 下。
+  createIntermediateGroups: true
+
+  # 本项目所有 UI 文案都是硬编码中文，没有任何 .lproj / Base.lproj 本地化目录。
+  # 关掉它，knownRegions 里就不会出现一个根本不存在的 "Base" 区域。
+  useBaseInternationalization: false
+
+  # 工程开发语言。与 Resources/Info.plist 里的 CFBundleDevelopmentRegion 保持一致。
+  developmentLanguage: zh-Hans
+
+# ------------------------------------------------------------------- 构建配置
+# 值只能是 debug / release，分别对应 Xcode 内置的两套默认构建设置
+# （Debug：-Onone、ENABLE_TESTABILITY=YES、ONLY_ACTIVE_ARCH=YES …；
+#   Release：-O、whole-module 优化、断言关闭 …）。
+# 不写这一段 XcodeGen 也会自动创建 Debug 和 Release，
+# 显式写出来是为了让"Release 到底继承了什么"一目了然。
+configs:
+  Debug: debug
+  Release: release
+
+# ---------------------------------------------------------------- 项目级设置
+settings:
+  base:
+    # 关掉「用户脚本沙箱」。Xcode 15 起新建工程默认打开它，
+    # 打开后 Run Script Phase 只能读自己的输入、写自己的输出，
+    # 任何额外的文件读写都会以
+    #   Sandbox: bash(...) deny(1) file-read-data ...
+    # 的形式让构建失败。用 XcodeGen / 脚本链构建时这是高频踩坑点，直接关掉。
+    #
+    # ⚠️ "NO" 必须带引号：YAML 1.1 会把裸写的 NO/YES/ON/OFF 当成布尔值
+    #    （裸 NO → false）。构建设置本身是字符串，加引号才能保证
+    #    写进 pbxproj 的就是字面量 NO，而不是被某个解析器转成 false。
+    #    本文件所有 YES/NO 值都遵循这条规则。
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+# ---------------------------------------------------------------------- 目标
+targets:
+  ArtStock:
+    type: application
+    platform: iOS
+    # 手表端会作为 Watch App 嵌进这个 App 的 bundle（Watch/ 目录）
+    dependencies:
+      - target: ArtAssistWatch
+
+
+    # ------------------------------------------------------------- 源码与资源
+    sources:
+      # 源码根目录，递归收集下面的所有 .swift（当前 48 个文件 / 约 9245 行）。
+      # 目录结构：App/ Models/ Persistence/ Services/ Scanner/ Features/ DesignSystem/ Support/
+      - path: ArtStock
+
+      # Asset catalog：交给 actool 编译成 Assets.car。
+      # 里面只有两样东西：AppIcon（图标）与 AccentColor（App 主题色/tint）。
+      # AppIcon-1024.png 已由 scripts/regenerate-app-icon.sh 程序化生成并入库
+      # （单张 1024×1024；Xcode 14+ 会自动派生其余尺寸，不需要老式的一堆 png）。
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+
+      # Info.plist 只通过下面的 INFOPLIST_FILE 被引用。
+      # 绝对不能进 Copy Bundle Resources，否则会报
+      #   "Multiple commands produce .../ArtStock.app/Info.plist"
+      # （XcodeGen 本身也不会把 Info.plist 加进任何 build phase，这里写
+      #   buildPhase: none 是为了把意图显式记录下来，避免以后被人"顺手"改掉。）
+      - path: Resources/Info.plist
+        buildPhase: none
+
+      # PP-OCR 的字符表（6623 个字符，26 KB）。
+      # 目前只被 PaddleOCR 的 CTC 解码用到 —— 也就是"模型路线"那部分。
+      # 先入库的原因：字符表的**索引约定**是整个解码链里最容易错的地方
+      # （blank 在 0、字典从 1 开始、空格在末尾），
+      # 有它在就能离线把解码逻辑测到底，不用等模型到位。
+      - path: Resources/ppocr_keys_v1.txt
+        buildPhase: resources
+
+    # ------------------------------------------------------------- 构建设置
+    settings:
+      base:
+        # ---- 身份 ----
+        PRODUCT_BUNDLE_IDENTIFIER: com.yuanjunhao.artstock
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        MARKETING_VERSION: "1.0"          # → Info.plist 的 CFBundleShortVersionString
+        CURRENT_PROJECT_VERSION: "1"      # → Info.plist 的 CFBundleVersion
+
+        # ---- Info.plist / 资源 ----
+        # 用仓库里手写的那份 plist，而不是 Xcode 的「自动生成 Info.plist」。
+        # 手写才能精确控制方向、多窗口、相机权限说明这些关键项。
+        INFOPLIST_FILE: Resources/Info.plist
+        # 显式关掉自动生成，避免 INFOPLIST_FILE 与 GENERATE_INFOPLIST_FILE
+        # 同时生效导致 key 冲突或覆盖（例如生成器塞进来的 UILaunchScreen）。
+        # 同样要为 "NO" 加引号，见上面 YAML 1.1 布尔坑的说明。
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+        # ---- 平台 ----
+        # 与 options.deploymentTarget 同值，写在这里方便 review。
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        # 1 = iPhone，2 = iPad。必须是字符串，不能写成数字。
+        # SideStore 的目标设备是 iPad（含分屏），同时保留 iPhone。
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+        # ---- Swift ----
+        SWIFT_VERSION: "5.0"
+        # 刻意用 minimal：Swift 6 语言模式 / complete 严格并发检查会在
+        # SwiftUI + SwiftData + AVFoundation 混用处产生大量并发隔离报错，
+        # 对一个要"能稳定出包"的工程来说收益远小于风险。
+        # 将来想升级：改成 targeted 跑一遍，再考虑 complete。
+        SWIFT_STRICT_CONCURRENCY: minimal
+        # 本工程零第三方依赖（纯 SwiftUI + SwiftData + AVFoundation +
+        # CoreImage + PhotosUI），所以没有任何包管理相关配置。
+
+        # ---- 签名：刻意**不**在这里硬编码 ----
+        #
+        # 出未签名 IPA 的那条链路是在**命令行**上覆盖签名开关的：
+        #   · scripts/make-unsigned-ipa.sh  → BUILD_ARGS 里带
+        #         CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+        #         CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS=""
+        #   · .github/workflows/build-ipa.yml 直接调用上面这个脚本
+        # 所以工程文件本身不需要、也不应该把这些值写死。
+        #
+        # ⚠️ 写死成 NO 会带来一个持续的痛点（已实测踩过）：
+        #      Xcode 里点 Run 到真机会直接失败；而你在 Signing & Capabilities
+        #      面板里改好之后，下次 `xcodegen generate` 又会被本文件覆盖回去。
+        #
+        # 保持工程"默认正常签名"，你就能在 Xcode 里选 Personal Team 直接跑真机；
+        # 出包脚本依旧通过命令行覆盖成不签名，两条路互不干扰。
+        #
+        # ⚠️ 代价：直接手敲 `xcodebuild` 而不带上述标志时，会走正常签名流程，
+        #    免费账号会因为找不到 Team 而报签名错误。出未签名包请务必用脚本。
+        #
+        # ⚠️ 这里刻意没有任何 *.entitlements 文件，也没有 capabilities。
+        #    本项目不用 iCloud/CloudKit、不用 App Group、不用远程推送、
+        #    不用 HealthKit、不用 Associated Domains
+        #    —— 全部是为了绕开免费 Apple ID 无法签发的 entitlement。
+        #    （SwiftData 的本地库已显式关掉 CloudKit：cloudKitDatabase: .none）
+        #    注意：本地通知（UNUserNotificationCenter）**不需要** entitlement，
+        #    所以免费账号下是可用的，将来要加提醒功能没有障碍。
+
+        # ---- 其它 ----
+        # 保留 Xcode 默认的 ENABLE_USER_SCRIPT_SANDBOXING 覆盖点在项目级，
+        # 这里不再重复。
+        # Release 下必须产出 dSYM，CI 会把 .dSYM 一起上传，方便以后符号化崩溃日志。
+        # （Xcode 默认通常已是 dwarf-with-dsym，这里写死避免依赖隐式默认值。）
+
+      configs:
+        Release:
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+          # Release 下开启整模块优化（Xcode 默认值，写出来是为了明确意图）。
+          SWIFT_COMPILATION_MODE: wholemodule
+
+
+  # ==========================================================================
+  #  Apple Watch 端（必要功能）
+  #  ------------------------------------------------------------------------
+  #  手表上只放两件"在手腕上确实更顺手"的事，而且都是**在表上能独立成立**的：
+  #    · 保湿计时（复用 iOS 端同一个 DryingModel，两边结论一致）
+  #    · 采购清单（在画材店里一只手划清单）
+  #
+  #  刻意**不做**"看颜料盒余量/在途包裹"：那需要把 iPad 上的数据搬过来，
+  #  而本项目不使用任何 entitlement（免费 Apple ID 签不了 App Group），
+  #  能跨设备的 WatchConnectivity 又需要配对的 iPhone —— 本 App 实际装在
+  #  iPad 上，iPad 不支持 WCSession。所以搬数据这条路在当前的交付方式下
+  #  走不通，硬做只会得到一份和 iPad 对不上的假数据。
+  # ==========================================================================
+  ArtAssistWatch:
+    type: application
+    platform: watchOS
+
+    sources:
+      - path: ArtAssistWatch
+        # 手表的 AppIcon 资源目录也在这里面，所以上面这条 path 会把它
+        # 一并收进去；asset catalog 由 XcodeGen 自动归到 resources 阶段。
+      # 干燥模型与偏好是**纯 Foundation** 的，直接同一份源码编译进来 ——
+      # 不是复制一份，所以手表与 iPad 的预测逻辑永远一致。
+      - path: ArtStock/Services/DryingModel.swift
+      - path: ArtStock/Services/WetnessPreferences.swift
+
+    settings:
+      base:
+        # ⚠️ watch App 的 bundle id **必须以宿主 App 的 bundle id 为前缀**，
+        #    否则安装时会报 "the watch app's bundle identifier is not
+        #    prefixed by the companion app's bundle identifier"。
+        PRODUCT_BUNDLE_IDENTIFIER: com.yuanjunhao.artstock.watchkitapp
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+        INFOPLIST_FILE: ArtAssistWatch/Info.plist
+        GENERATE_INFOPLIST_FILE: "NO"
+
+        WATCHOS_DEPLOYMENT_TARGET: "10.0"
+        # 4 = Apple Watch。XcodeGen 按 platform 也会设，这里显式写清。
+        TARGETED_DEVICE_FAMILY: "4"
+
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+
+        # 表盘图标。手表端有**自己的一份** AppIcon 资源目录
+        # （ArtAssistWatch/Assets.xcassets，同样是单张 1024 的写法）：
+        # watchOS 的表盘图标尺寸体系与 iOS 不同，共用一份 catalog 会缺尺寸。
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+# ---------------------------------------------------------------------- 方案
+# 显式生成一个 **shared scheme**（写入
+# ArtStock.xcodeproj/xcshareddata/xcschemes/ArtStock.xcscheme）。
+# 这一步不能省：CI 上跑的是 `xcodebuild -scheme ArtStock`，
+# 如果没有 shared scheme，headless 环境下 xcodebuild 找不到 scheme，
+# 会以 "xcodebuild: error: The project named "ArtStock" does not contain
+# a scheme named "ArtStock"" 直接失败。
+#
+# management.shared 写死为 true 而**不依赖默认值**：
+# XcodeGen 文档把 shared 列为可选（Bool），没有明说默认值。
+# 这条是 CI 成败的单点依赖，显式声明掉这个不确定性，代价为零。
+schemes:
+  # 手表端单独的 scheme：`xcodebuild -scheme ArtAssistWatch` 能单独验证它。
+  # 同样必须 shared —— headless 环境下 xcodebuild 找不到非 shared 的 scheme。
+  ArtAssistWatch:
+    management:
+      shared: true
+    build:
+      targets:
+        ArtAssistWatch: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+  ArtStock:
+    management:
+      shared: true
+    build:
+      targets:
+        ArtStock: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+# ------------------------------------------------------------------- 附带文件
+# 这些只是挂到 Xcode 左侧导航栏方便随手查阅，**不加入任何 target、不参与编译**。
+# 注意 Tests/ParserTests/main.swift 是带顶层代码的可执行入口（编译成命令行测试程序），
+# 一旦被误加进 target 的 sources，就会和 ArtStockApp.swift 的 @main 冲突。
+# 用 fileGroups 引用则可确保它只出现在导航栏里。
+fileGroups:
+  - README.md
+  - project.yml
+  - scripts
+  - Tests
+
+# ============================================================================
+#  附：签名怎么走（两条路互不干扰）
+#  ---------------------------------------------------------------------------
+#  本工程**默认不写任何签名设置**，所以：
+#
+#  ▸ 在 Xcode 里开发（推荐日常用这条）
+#      打开 ArtStock.xcodeproj → 选 target ArtStock → Signing & Capabilities
+#      → 勾选 "Automatically manage signing" → Team 选你的 Personal Team。
+#      之后直接点 Run 就能装到 iPad / iPhone 上。
+#      免费 Apple ID 的 Personal Team 完全够用（7 天有效期，到期重跑一次即可）。
+#      ✅ 这个选择**不会被 `xcodegen generate` 覆盖**，因为本文件不再写这些键。
+#
+#  ▸ 出未签名 IPA（给 SideStore 用）
+#      用脚本，签名开关在命令行上覆盖：
+#          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+#          ./scripts/make-unsigned-ipa.sh
+#      CI（.github/workflows/build-ipa.yml）走的也是这个脚本，行为一致。
+#
+#  ⚠️ 代价：直接手敲 `xcodebuild` 而不带 CODE_SIGNING_ALLOWED=NO 等标志时，
+#     会走正常签名流程，免费账号若没配 Team 会报签名错误。出未签名包请用脚本。
+#
+#  将来若要上架 App Store，用 Xcode 的 Product → Archive 即可（需要付费账号）。
+#
+#  ⚠️ 再次提醒：开启签名**不等于**可以使用 entitlement。
+#     免费 Apple ID 依然签不了 iCloud / App Group / 推送等能力，
+#     本项目也刻意没有用到它们。
+# ============================================================================

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  ArtAssist 的 Apple Watch 端。
+
+	  WKApplication = true 表示这是 watchOS 的单 target App
+	  （watchOS 7 起不再需要单独的 WatchKit Extension）。
+	-->
+	<key>WKApplication</key>
+	<true/>
+
+	<!-- 配对的 iPhone App。绑在同一个 App 上，安装时一起装。 -->
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.yuanjunhao.artstock</string>
+
+	<!-- 可以脱离 iPhone 单独运行：保湿计时和采购清单都在表上自己算、自己存。 -->
+	<key>WKRunsIndependentlyOfCompanionApp</key>
+	<true/>
+
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh-Hans</string>
+	<key>CFBundleDisplayName</key>
+	<string>ArtAssist</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- 表盘上要用的图标由 Xcode 从 iOS 端的 AppIcon 派生；这里不重复声明。 -->
+</dict>
+</plist>

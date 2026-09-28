@@ -1,0 +1,452 @@
+{
+  "IncomingPackage": {
+    "arrivalSourceRaw": {
+      "hasDefault": true,
+      "type": "String"
+    },
+    "carrierIsGuess": {
+      "hasDefault": false,
+      "type": "Bool"
+    },
+    "carrierName": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "createdAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "estimatedArrival": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "orderedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "receivedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "sourceRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "statusRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "stockedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "taobaoOrderID": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "trackingNumber": {
+      "hasDefault": false,
+      "type": "String"
+    }
+  },
+  "IncomingPackageItem": {
+    "isStocked": {
+      "hasDefault": false,
+      "type": "Bool"
+    },
+    "name": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "package": {
+      "hasDefault": false,
+      "type": "IncomingPackage?"
+    },
+    "quantity": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "refillKindRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "stockedQuantity": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "targetCode": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "targetKindRaw": {
+      "hasDefault": false,
+      "type": "String"
+    }
+  },
+  "PaintColor": {
+    "brand": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "calibratedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "ciCode": {
+      "hasDefault": false,
+      "type": "String?"
+    },
+    "code": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "createdAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "hex": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "name": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "notes": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "scannedPayload": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "series": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "updatedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    }
+  },
+  "PaletteBox": {
+    "columns": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "createdAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "name": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "rows": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "updatedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    }
+  },
+  "PaletteWell": {
+    "box": {
+      "hasDefault": false,
+      "type": "PaletteBox?"
+    },
+    "color": {
+      "hasDefault": false,
+      "type": "PaintColor?"
+    },
+    "column": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "lastRefilledAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "levelRaw": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "row": {
+      "hasDefault": false,
+      "type": "Int"
+    }
+  },
+  "RefillEvent": {
+    "colorCode": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "colorName": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "date": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "kindRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "unitsUsed": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "wellsFilled": {
+      "hasDefault": false,
+      "type": "Int"
+    }
+  },
+  "RefillStock": {
+    "capacityPerUnit": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "color": {
+      "hasDefault": false,
+      "type": "PaintColor?"
+    },
+    "kindRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "lowThresholdCapacity": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "partialCapacity": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "units": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "updatedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    }
+  },
+  "SupplyItem": {
+    "categoryRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "createdAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "fullCapacityValue": {
+      "hasDefault": false,
+      "type": "Double?"
+    },
+    "lowThreshold": {
+      "hasDefault": false,
+      "type": "Double"
+    },
+    "name": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "quantity": {
+      "hasDefault": false,
+      "type": "Double"
+    },
+    "recentUnitsRaw": {
+      "hasDefault": false,
+      "type": "String?"
+    },
+    "unit": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "updatedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    }
+  },
+  "Textbook": {
+    "addedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "coverFileName": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "coverURL": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "lastOpenedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "lastReadPage": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "lastSyncedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "name": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "pageCount": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "remoteID": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "viewCount": {
+      "hasDefault": false,
+      "type": "Int"
+    }
+  },
+  "TextbookPage": {
+    "byteCount": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "failureReason": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "localRelativePath": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "pageNumber": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "remoteURL": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "stateRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "textbook": {
+      "hasDefault": false,
+      "type": "Textbook?"
+    },
+    "updatedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    }
+  },
+  "WetnessSession": {
+    "calibrationUsed": {
+      "hasDefault": false,
+      "type": "Double"
+    },
+    "closureRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "derivedCalibration": {
+      "hasDefault": false,
+      "type": "Double?"
+    },
+    "endedAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "humiditySource": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "mistCount": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "note": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "observedRemistAt": {
+      "hasDefault": false,
+      "type": "Date?"
+    },
+    "paintSystemRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "placeName": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "predictedRemistAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "predictedSkinningAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "relativeHumidity": {
+      "hasDefault": false,
+      "type": "Double"
+    },
+    "spraysPerRemist": {
+      "hasDefault": false,
+      "type": "Int"
+    },
+    "startedAt": {
+      "hasDefault": false,
+      "type": "Date"
+    },
+    "statusRaw": {
+      "hasDefault": false,
+      "type": "String"
+    },
+    "temperatureC": {
+      "hasDefault": false,
+      "type": "Double"
+    },
+    "wasCalibrated": {
+      "hasDefault": false,
+      "type": "Bool"
+    },
+    "wasManuallyAdjusted": {
+      "hasDefault": false,
+      "type": "Bool"
+    }
+  }
+}
