@@ -139,7 +139,12 @@ fi
 #     DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/make-unsigned-ipa.sh
 # 只检查 `xcode-select -p` 会把这种情况误判成"没装 Xcode"。
 DEVELOPER_PATH="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || echo '')}"
-if ! printf '%s' "$DEVELOPER_PATH" | grep -q 'Xcode.app/Contents/Developer'; then
+# ⚠️ 用 `Xcode[^/]*\.app/Contents/Developer` 而不是 `Xcode.app/...`：
+#    GitHub runner 与不少 Mac 上 Xcode 装在**带版本号**的目录里
+#    （如 /Applications/Xcode_26.6.0.app/Contents/Developer）。
+#    旧写法只认 Xcode.app，会把版本化目录误判成"不是完整 Xcode"，
+#    导致 CI 构建一进来就死（实测踩过，见 GitHub Actions 第一次构建失败）。
+if ! printf '%s' "$DEVELOPER_PATH" | grep -q 'Xcode[^/]*\.app/Contents/Developer'; then
     die "当前命令行工具指向的不是完整 Xcode，因此没有 iOS SDK，无法构建 iOS App。
 
        xcode-select -p  →  ${DEVELOPER_PATH:-<取不到>}

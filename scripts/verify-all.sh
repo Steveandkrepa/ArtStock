@@ -140,7 +140,9 @@ fi
 step "6/6  真实 xcodebuild 编译（需要 Xcode）"
 
 DEVELOPER_PATH="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null || echo '')}"
-if ! printf '%s' "$DEVELOPER_PATH" | grep -q 'Xcode.app/Contents/Developer'; then
+# 与 make-unsigned-ipa.sh 同步：允许版本化 Xcode 目录（Xcode_26.6.0.app），
+# 否则 GitHub runner 上会被误判为"没有完整 Xcode"而跳过编译检查。
+if ! printf '%s' "$DEVELOPER_PATH" | grep -q 'Xcode[^/]*\.app/Contents/Developer'; then
     printf '%s   – 跳过：没有可用的完整 Xcode。%s\n' "$DIM" "$RESET"
     printf '%s    设 DEVELOPER_DIR 或跑 sudo xcode-select -s 后即可自动启用此步。%s\n' "$DIM" "$RESET"
 elif ! command -v xcodegen >/dev/null 2>&1; then
