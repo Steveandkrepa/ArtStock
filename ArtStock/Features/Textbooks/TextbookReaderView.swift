@@ -747,20 +747,20 @@ struct TextbookReaderView: View {
 
                 switch source(for: record.pageNumber) {
                 case .local(let url):
-                    if let image = UIImage(contentsOfFile: url.path) {
+                    // ⚠️ 绝不能再用 UIImage(contentsOfFile:) —— 那是把整张
+                    // 扫描原图解进内存，预览目录一屏十几格就是上 GB，直接崩。
+                    // TextbookThumbnailLoader 只解 720px 缩略图 + 有界缓存。
+                    if let image = TextbookThumbnailLoader.thumbnail(at: url) {
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                 case .remote(let urlString):
-                    AsyncImage(url: URL(string: urlString)) { image in
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Image(systemName: record.state.symbolName)
-                            .foregroundStyle(.secondary)
+                    if let url = URL(string: urlString) {
+                        RemoteThumbnailView(url: url, placeholderSymbol: record.state.symbolName)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 case .missing:
                     Image(systemName: "doc.questionmark")
                         .foregroundStyle(.secondary)
@@ -804,6 +804,43 @@ struct TextbookReaderView: View {
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
+            }
+        }
+    }
+
+    // MARK: - 远程缩略图
+
+    /// 远程页缩略图：异步下载 → 降采样 → 缓存。
+    ///
+    /// ⚠️ 为什么不用 AsyncImage：它会把整张原图下载并**全分辨率解码**，
+    ///    预览目录里多格同时渲染时内存直接崩。这里走
+    ///    `TextbookThumbnailLoader.remoteThumbnail`，只解 720px 缩略图，
+    ///    内存占用与本地缩略图同级。
+    ///
+    /// `.task(id:)` 挂在格子上：cell 滑出视野时任务自动取消；
+    /// 再滑回来时缓存命中，立即出图。
+    private struct RemoteThumbnailView: View {
+        let url: URL
+        let placeholderSymbol: String
+
+        @State private var image: UIImage?
+
+        var body: some View {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: placeholderSymbol)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .task(id: url) {
+                let loaded = await TextbookThumbnailLoader.remoteThumbnail(from: url)
+                // 任务被取消（cell 已滑出）就别再往回写状态。
+                guard !Task.isCancelled else { return }
+                image = loaded
             }
         }
     }
