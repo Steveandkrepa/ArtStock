@@ -305,6 +305,18 @@ enum TaobaoScreenFocus {
         "确认收货", "查看物流", "已到达", "快件已", "物流信息",
     ]
 
+    /// 硬框架短语：含这些短语的行**绝不可能是商品名**。
+    ///
+    /// 和 chromeWords 的区别：这里用**包含**匹配，能压住
+    /// "月销 100+""已售 500+""加入购物车后"这类带后缀的写法；
+    /// chromeWords 是整行/前缀匹配，后缀一多就放过去了。
+    static let hardChromePhrases: [String] = [
+        "月销", "已售", "销量", "付款", "交易成功", "交易关闭", "退款成功",
+        "七天无理由", "极速退款", "运费险",
+        "加入购物车", "立即购买", "再买一单", "删除订单",
+        "进店逛逛", "联系客服", "在线客服", "查看详情", "订单详情", "申请售后",
+    ]
+
     /// 整理一屏。
     ///
     /// - Parameter knownNames: 用户库里的东西（耗材名、颜色名、色号）。
@@ -312,6 +324,7 @@ enum TaobaoScreenFocus {
     static func focus(_ lines: [String], knownNames: [String]) -> Result {
         var result = Result()
         var seen = Set<String>()
+        var seenNormalized = Set<String>()
         // 词典先归一化并按长度降序 —— 匹配时长名字优先，
         // 否则"樱花"会先命中"樱花橡皮"的子串。
         let dictionary = knownNames
@@ -344,7 +357,13 @@ enum TaobaoScreenFocus {
 
             // 对不上：只要像商品名/单号就留着（可能是没录过的新东西）
             if hasTracking || isProductLike(line) {
-                if seen.insert(line).inserted { result.lines.append(line) }
+                let norm = normalize(line)
+                if !norm.isEmpty, !seenNormalized.insert(norm).inserted {
+                    // 同一件东西的另一种写法（空格/标点不同），只留第一条
+                    result.droppedLines += 1
+                } else if seen.insert(line).inserted {
+                    result.lines.append(line)
+                }
             } else {
                 result.droppedLines += 1
             }
@@ -390,6 +409,15 @@ enum TaobaoScreenFocus {
         if looksLikePriceOrDate(line) { return true }
         // 物流/交易状态（用包含匹配，见 statusPhrases 的说明）
         if statusPhrases.contains(where: { line.contains($0) }) { return true }
+        // 硬框架短语：含这些词的行绝不可能是商品（包含匹配，
+        // 压住"月销 100+""加入购物车后"这类带后缀的写法）
+        if hardChromePhrases.contains(where: { normalized.contains($0) }) { return true }
+        // 店铺行："XX旗舰店 / XX专营店" 是店铺名不是商品
+        if normalized.hasSuffix("旗舰店") || normalized.hasSuffix("专营店")
+            || normalized.hasSuffix("专卖店") || normalized.hasSuffix("官方店")
+            || normalized.hasSuffix("自营店") || normalized.hasSuffix("企业店") {
+            return true
+        }
         // "共 3 件" "第 2 页" 这类
         if normalized.hasPrefix("共") && normalized.hasSuffix("件") { return true }
         if normalized.hasPrefix("第") && normalized.hasSuffix("页") { return true }

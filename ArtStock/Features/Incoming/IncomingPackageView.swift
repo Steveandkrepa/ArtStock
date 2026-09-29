@@ -29,6 +29,7 @@ struct IncomingPackageView: View {
     @State private var isAdding = false
     @State private var isShowingOrders = false
     @State private var openedPackage: IncomingPackage?
+    @State private var logisticsPackage: IncomingPackage?
     @State private var message: String?
     @State private var filter: Filter = .active
 
@@ -95,6 +96,13 @@ struct IncomingPackageView: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                if !package.trackingNumber.isEmpty {
+                                    Button {
+                                        logisticsPackage = package
+                                    } label: {
+                                        Label("查看物流", systemImage: "map")
+                                    }
+                                }
                                 if package.status == .inTransit {
                                     Button {
                                         IncomingPackageService.markReceived(package, in: context)
@@ -142,6 +150,14 @@ struct IncomingPackageView: View {
         }
         .sheet(item: $openedPackage) { package in
             IncomingPackageDetailView(package: package)
+        }
+        .sheet(item: $logisticsPackage) { package in
+            LogisticsQueryView(
+                trackingNumber: package.trackingNumber,
+                carrierName: package.carrierDisplay == "承运商未知"
+                    ? ""
+                    : package.carrierName
+            )
         }
         .alert("提示", isPresented: .presentWhen($message)) {
             Button("好") { message = nil }
@@ -450,6 +466,7 @@ struct IncomingPackageDetailView: View {
 
     @State private var message: String?
     @State private var isConfirmingDelete = false
+    @State private var isShowingLogistics = false
     /// 单独的提示：`message` 那个 alert 标题是"入库结果"，
     /// 拿来显示"推算不了"会张冠李戴。
     @State private var arrivalNote: String?
@@ -482,6 +499,14 @@ struct IncomingPackageDetailView: View {
                 Button("好") { message = nil }
             } message: {
                 Text(message ?? "")
+            }
+            .sheet(isPresented: $isShowingLogistics) {
+                LogisticsQueryView(
+                    trackingNumber: package.trackingNumber,
+                    carrierName: package.carrierDisplay == "承运商未知"
+                        ? ""
+                        : package.carrierName
+                )
             }
             .alert("到货推算", isPresented: .presentWhen($arrivalNote)) {
                 Button("好") { arrivalNote = nil }
@@ -743,6 +768,17 @@ struct IncomingPackageDetailView: View {
 
     private var actionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !package.trackingNumber.isEmpty {
+                Button {
+                    isShowingLogistics = true
+                } label: {
+                    Label("查看物流", systemImage: "map")
+                        .frame(maxWidth: .infinity)
+                }
+                .artGlassButton()
+                .controlSize(.large)
+            }
+
             if package.status == .inTransit {
                 Button {
                     IncomingPackageService.markReceived(package, in: context)

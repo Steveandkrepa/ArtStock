@@ -54,7 +54,11 @@ struct TaobaoOrdersView: View {
                 }
             }
             .sheet(isPresented: $isShowingLogin) {
-                TaobaoWebLoginView(store: store) {}
+                TaobaoWebLoginView(store: store) {
+                    message = "已登录「\(store.activeAccount?.displayName ?? "账号")」，"
+                        + "可以开始同步订单了。"
+                    Haptics.saved()
+                }
             }
             .sheet(isPresented: $isShowingWebSync) {
                 TaobaoWebSyncView(store: store) { text in
@@ -142,6 +146,36 @@ struct TaobaoOrdersView: View {
                 }
             }
 
+            // 账号多了以后，切换入口别藏在列表底部 —— 这里直接给一个下拉
+            if store.accounts.count > 1 {
+                Menu {
+                    ForEach(store.accounts) { account in
+                        Button {
+                            let ok = store.switchTo(accountID: account.id)
+                            message = ok
+                                ? "已切到「\(account.displayName)」。"
+                                    + "点「打开淘宝网页识别订单」进去就是它的登录状态。"
+                                : "切换失败：账号不在列表里了。"
+                        } label: {
+                            if account.id == store.activeAccountID {
+                                Label(account.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(account.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("快速切换：\(store.activeAccount?.displayName ?? "未选择")")
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                }
+            }
+
             Button {
                 // 新账号 = 一份全新的空档案，所以不需要清任何东西
                 store.beginAddingAccount()
@@ -215,12 +249,23 @@ struct TaobaoOrdersView: View {
                         .foregroundStyle(account.id == store.activeAccountID
                                          ? Theme.accent : Color.secondary)
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(account.displayName)
-                            .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(account.displayName)
+                                .font(.subheadline.weight(.medium))
+                            if account.isSignedIn {
+                                Label("已登录", systemImage: "checkmark.circle.fill")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.green)
+                            } else {
+                                Label("未确认", systemImage: "questionmark.circle")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                         Text(account.isSignedIn
                              ? "上次确认登录 \(Fmt.relative(account.signedInAt ?? account.savedAt))"
-                             : "登录状态未确认")
+                             : "登录状态未确认，登录过一次就能同步订单")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }

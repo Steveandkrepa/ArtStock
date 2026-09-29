@@ -62,6 +62,15 @@ struct TaobaoWebSyncView: View {
     /// 被当成页面框架丢掉的行数。
     @State private var droppedCount = 0
 
+    /// 词条勾选：从识别文字里再解析出来的"单号 + 商品"候选。
+    @State private var review: CaptureReview?
+    /// 用户勾选了哪几条商品（按 `ParsedPackageItem.id`）。
+    @State private var selectedItemIDs: Set<String> = []
+    /// 用户勾选了哪个快递单号。
+    @State private var selectedTrackingID: String?
+    /// 是否在展示「选词条建包裹」页。
+    @State private var isShowingReview = false
+
     private let orderPage = TaobaoWebEndpoint.orderListPage
 
     /// 灰度 + 提对比度用的共享 CIContext。
@@ -82,6 +91,8 @@ struct TaobaoWebSyncView: View {
                     // 档案里的登录态已经失效 —— 如实标记，别继续显示"已登录"
                     store.markSignedOut()
                 }
+                // 账号切换后强制重建 WebView —— 每个账号一个独立浏览器档案
+                .id(store.activeAccountID ?? "none")
                 navigationRow
                 statusBar
             }
@@ -91,10 +102,51 @@ struct TaobaoWebSyncView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    accountSwitcherMenu
+                }
             }
             .sheet(isPresented: $isShowingText) {
                 recognizedTextSheet
             }
+            .sheet(isPresented: $isShowingReview) {
+                reviewSheet
+            }
+        }
+    }
+
+    // MARK: 账号快速切换
+
+    /// 不退出「识别订单」就能换账号 —— 换的是浏览器档案，登录态各自独立。
+    private var accountSwitcherMenu: some View {
+        Menu {
+            ForEach(store.accounts) { account in
+                Button {
+                    if store.switchTo(accountID: account.id) {
+                        statusText = "已切到「\(account.displayName)」，翻到订单页再识别"
+                        Haptics.selection()
+                    }
+                } label: {
+                    if account.id == store.activeAccountID {
+                        Label(account.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(account.displayName)
+                    }
+                }
+            }
+            Divider()
+            Button {
+                store.beginAddingAccount()
+                statusText = "正在添加新账号：登录完成后会自动切过去"
+            } label: {
+                Label("添加另一个账号", systemImage: "plus")
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: store.isLoggedIn ? "person.crop.circle.fill.badge.checkmark" : "person.crop.circle")
+                Text(store.activeAccount?.displayName ?? "账号")
+            }
+            .font(.subheadline.weight(.medium))
         }
     }
 
@@ -192,6 +244,9 @@ struct TaobaoWebSyncView: View {
                     lineCount = 0
                     matchedCount = 0
                     droppedCount = 0
+                    review = nil
+                    selectedItemIDs = []
+                    selectedTrackingID = nil
                     statusText = "已清空，可以重新认"
                 } label: {
                     Text("清空重来")
@@ -203,10 +258,10 @@ struct TaobaoWebSyncView: View {
                 Spacer(minLength: 0)
 
                 Button {
-                    onFinish(recognizedText)
-                    dismiss()
+                    refreshReview()
+                    isShowingReview = true
                 } label: {
-                    Text("用这些文字建包裹")
+                    Text("选词条建包裹")
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.borderless)
@@ -252,17 +307,246 @@ struct TaobaoWebSyncView: View {
                     Button("好") {
                         lineCount = recognizedText.split(separator: "\n").count
                         isShowingText = false
+                        // 用户可能改过文字，重新解析词条
+                        refreshReview()
                     }
                 }
                 ToolbarItem(placement: .bottomBar) {
                     Button("清空", role: .destructive) {
                         recognizedText = ""
                         lineCount = 0
+                        review = nil
+                        selectedItemIDs = []
+                        selectedTrackingID = nil
                     }
                     .disabled(recognizedText.isEmpty)
                 }
             }
         }
+    }
+
+    // MARK: 词条勾选（单号 + 商品，挑有用的导入）
+
+    /// 从当前识别文字里解析出可勾选的词条。
+    ///
+    /// 用户在「看 / 改文字」里改完回来、或者重新识别后，这里都要重跑一遍，
+    /// 保证勾选页跟文字编辑页看到的是同一份解析结果。
+    private func refreshReview() {
+        let text = recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            review = nil
+            selectedItemIDs = []
+            selectedTrackingID = nil
+            return
+        }
+        let parsed = OrderTextParser.parse(text)
+        let catalog = IncomingPackageService.catalog(in: context)
+        let matched = PackageItemMatcher.match(items: parsed.items, against: catalog)
+
+        let entries = zip(parsed.items, matched).map { item, match in
+            CaptureReviewItem(
+                id: item.id,
+                name: item.name,
+                quantity: item.quantity,
+                rawLine: item.rawLine,
+                targetDisplay: match.target.displayName,
+                needsConfirmation: match.needsConfirmation
+            )
+        }
+        review = CaptureReview(
+            trackingChoices: parsed.trackingCandidates,
+            items: entries
+        )
+        // 默认全选 + 认出的单号，用户按需取消
+        selectedItemIDs = Set(entries.map(\.id))
+        selectedTrackingID = parsed.trackingNumber ?? parsed.trackingCandidates.first?.number
+    }
+
+    /// 把勾选结果拼回文字，回传给外面建包裹。
+    private func importSelected() {
+        guard let review else { return }
+        var lines: [String] = []
+        if let tracking = selectedTrackingID {
+            lines.append(tracking)
+        }
+        for entry in review.items where selectedItemIDs.contains(entry.id) {
+            lines.append(entry.rawLine)
+        }
+        onFinish(lines.joined(separator: "\n"))
+        dismiss()
+    }
+
+    private var reviewSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let review {
+                        if !review.trackingChoices.isEmpty {
+                            trackingSection(review)
+                        }
+                        if !review.items.isEmpty {
+                            itemsSection(review)
+                        } else {
+                            Text("这段文字里没认出商品条目。可以点「看 / 改文字」把商品名改清楚，或者直接导入原文。")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    } else {
+                        Text("还没有识别内容。先翻到订单页点「识别这一屏」。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("选要导入的内容")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { isShowingReview = false }
+                }
+                // 兜底：一条都没选的时候也能整段带走
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("导入原文") {
+                        onFinish(recognizedText)
+                        dismiss()
+                    }
+                    .disabled(recognizedText.isEmpty)
+                }
+            }
+            .safeAreaInset(edge: .bottom) { importSelectedBar }
+        }
+    }
+
+    private func trackingSection(_ review: CaptureReview) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "快递单号",
+                          subtitle: selectedTrackingID.map { "将导入：\($0)" } ?? "不导入单号")
+            ForEach(review.trackingChoices) { candidate in
+                Button {
+                    selectedTrackingID = selectedTrackingID == candidate.number ? nil : candidate.number
+                    Haptics.selection()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: selectedTrackingID == candidate.number
+                              ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(selectedTrackingID == candidate.number
+                                             ? Color.accentColor : Color.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(candidate.number)
+                                .font(.system(.body, design: .monospaced))
+                            if let carrier = candidate.carrier {
+                                Text("\(carrier)（\(candidate.confidence.displayName)）")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(candidate.evidence)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+    }
+
+    private func itemsSection(_ review: CaptureReview) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                SectionHeader(title: "商品词条",
+                              subtitle: "已选 \(selectedItemIDs.count) / \(review.items.count) 条")
+                Spacer()
+                Button(selectedItemIDs.count == review.items.count ? "全不选" : "全选") {
+                    selectedItemIDs = selectedItemIDs.count == review.items.count
+                        ? []
+                        : Set(review.items.map(\.id))
+                    Haptics.selection()
+                }
+                .font(.caption.weight(.medium))
+                .buttonStyle(.borderless)
+            }
+            ForEach(review.items) { entry in
+                Button {
+                    if selectedItemIDs.contains(entry.id) {
+                        selectedItemIDs.remove(entry.id)
+                    } else {
+                        selectedItemIDs.insert(entry.id)
+                    }
+                    Haptics.selection()
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: selectedItemIDs.contains(entry.id)
+                              ? "checkmark.square.fill" : "square")
+                            .foregroundStyle(selectedItemIDs.contains(entry.id)
+                                             ? Color.accentColor : Color.secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(entry.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(2)
+                                Spacer(minLength: 8)
+                                Text("×\(entry.quantity)")
+                                    .font(.subheadline.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack(spacing: 6) {
+                                Text(entry.targetDisplay)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                if entry.needsConfirmation {
+                                    Text("可能不准")
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Divider()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+    }
+
+    private var importSelectedBar: some View {
+        let itemCount = selectedItemIDs.count
+        let hasTracking = selectedTrackingID != nil
+        let label: String
+        if itemCount > 0, hasTracking {
+            label = "导入 \(itemCount) 条商品 + 快递单号"
+        } else if itemCount > 0 {
+            label = "导入选中的 \(itemCount) 条商品"
+        } else if hasTracking {
+            label = "只导入快递单号"
+        } else {
+            label = "没有选中的内容"
+        }
+        return VStack(spacing: 0) {
+            Button {
+                importSelected()
+            } label: {
+                Label(label, systemImage: "shippingbox")
+                    .frame(maxWidth: .infinity)
+            }
+            .artProminentButton()
+            .controlSize(.large)
+            .disabled(itemCount == 0 && !hasTracking)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
     // MARK: 截图认字
@@ -358,6 +642,25 @@ struct TaobaoWebSyncView: View {
         return Self.ciContext.createCGImage(adjusted, from: adjusted.extent)
             ?? image.cgImage
     }
+}
+
+// MARK: - 词条勾选数据
+
+/// 「选词条建包裹」页的一行：从识别文字里解析出的一条商品。
+struct CaptureReviewItem: Identifiable {
+    /// 与 `ParsedPackageItem.id` 一致（name|quantity|rawLine），用于勾选集合。
+    let id: String
+    let name: String
+    let quantity: Int
+    let rawLine: String
+    let targetDisplay: String
+    let needsConfirmation: Bool
+}
+
+/// 「选词条建包裹」页的完整解析结果。
+struct CaptureReview {
+    var trackingChoices: [TrackingCandidate]
+    var items: [CaptureReviewItem]
 }
 
 // MARK: - WebView 引用与状态

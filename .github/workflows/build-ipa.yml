@@ -218,6 +218,18 @@ jobs:
           xcodegen --version
 
       # ---------------------------------------------------------------- 5
+      # 本机验证套件（不依赖 iOS SDK）：swiftc -parse 全部源码 +
+      # 一致性/迁移检查 + 12 套 CLI 测试 + 资源/脚本静态检查。
+      # 跑在 Xcode 环境里正好：Tests 只 import Foundation/CoreGraphics，
+      # 用 runner 的 swiftc 编译即可；测试挂了就不出包。
+      - name: 运行测试与静态检查（verify-all）
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/verify-all.sh
+          ./scripts/verify-all.sh
+
+      # ---------------------------------------------------------------- 6
       - name: 准备构建元信息（时间戳 / 短 SHA）
         id: meta
         shell: bash
@@ -230,7 +242,7 @@ jobs:
           echo "ipa_name=ArtStock-unsigned-$stamp-$short_sha.ipa" >> "$GITHUB_OUTPUT"
           echo "artifact_name=ArtStock-unsigned-ipa-${stamp}-${short_sha}" >> "$GITHUB_OUTPUT"
 
-      # ---------------------------------------------------------------- 6
+      # ---------------------------------------------------------------- 7
       - name: 构建未签名 IPA
         shell: bash
         run: |
@@ -242,7 +254,7 @@ jobs:
             Release \
             "$PWD/build/${{ steps.meta.outputs.ipa_name }}"
 
-      # ---------------------------------------------------------------- 7
+      # ---------------------------------------------------------------- 8
       - name: 收集构建日志（Xcode / SDK 版本快照）
         if: always()
         shell: bash
@@ -277,7 +289,7 @@ jobs:
           } > build/logs/build-environment.txt 2>&1
           cat build/logs/build-environment.txt
 
-      # ---------------------------------------------------------------- 8
+      # ---------------------------------------------------------------- 9
       - name: 上传 IPA
         uses: actions/upload-artifact@v4
         with:
@@ -288,7 +300,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # ---------------------------------------------------------------- 9
+      # ---------------------------------------------------------------- 10
       - name: 上传构建日志
         if: always()
         uses: actions/upload-artifact@v4
@@ -298,7 +310,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      # ---------------------------------------------------------------- 10
+      # ---------------------------------------------------------------- 11
       # dSYM 用 xcodebuild 的默认输出位置。
       # 注意：这只是 artifact 的 glob，不影响脚本本身
       # （脚本仍然用 -showBuildSettings 动态定位产物，没有硬编码路径）。
@@ -313,7 +325,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      # ---------------------------------------------------------------- 11
+      # ---------------------------------------------------------------- 12
       - name: 汇总结果
         if: always()
         shell: bash
